@@ -18,15 +18,19 @@
 #define INFINITY 1e8
 #endif
 #include <SDL2/SDL.h>
+#include <zconf.h>
 
-const int width = 640;
-const int height = 480;
+const int width = 400;
+const int height = 400;
 
 using Eigen::Vector3f;
 using Eigen::Matrix4f;
 
-Uint32 WHITE = SDL_MapRGBA(SDL_AllocFormat(SDL_PIXELFORMAT_RGBA8888), 0xFF, 0xFF, 0xFF, 0xFF);
-Uint32 BLACK = SDL_MapRGBA(SDL_AllocFormat(SDL_PIXELFORMAT_RGBA8888), 0x00, 0x00, 0x00, 0xFF);
+Uint32 WHITE = SDL_MapRGBA(SDL_AllocFormat(SDL_PIXELFORMAT_RGBA8888), 255, 255, 255, 255);
+Uint32 BLACK = SDL_MapRGBA(SDL_AllocFormat(SDL_PIXELFORMAT_RGBA8888), 0, 0, 0, 255);
+Uint32 RED = SDL_MapRGBA(SDL_AllocFormat(SDL_PIXELFORMAT_RGBA8888), 255, 0, 0, 255);
+Uint32 GREEN = SDL_MapRGBA(SDL_AllocFormat(SDL_PIXELFORMAT_RGBA8888), 0, 255, 0, 255);
+
 Model *model = NULL;
 SDL_Window *gWindow = NULL;
 SDL_Renderer *gRender = NULL;
@@ -61,7 +65,7 @@ void Clear(Uint32 *pix, Uint32 color) {
 }
 
 void put_pixel(Uint32 *pix, Uint32 color, int x, int y) {
-  pix[(height-y-1) * width + x] = color;
+  pix[(height - y - 1) * width + x] = color;
 }
 
 void Line(int x0, int y0, int x1, int y1, Uint32 *pix, Uint32 color) {
@@ -86,8 +90,30 @@ void Line(int x0, int y0, int x1, int y1, Uint32 *pix, Uint32 color) {
     }
   }
 }
-int main(int argc, char** argv) {
-  if (2==argc) {
+
+void Triangle(Vector2i t0, Vector2i t1, Vector2i t2, Uint32 *pix, Uint32 color) {
+  if (t0.y() == t1.y() && t0.y() == t2.y()) return; // i dont care about degenerate triangles
+  if (t0.y() > t1.y()) std::swap(t0, t1);
+  if (t0.y() > t2.y()) std::swap(t0, t2);
+  if (t1.y() > t2.y()) std::swap(t1, t2);
+  int total_height = t2.y() - t0.y();
+  for (int i = 0; i < total_height; i++) {
+    bool second_half = i > t1.y() - t0.y() || t1.y() == t0.y();
+    int segment_height = second_half ? t2.y() - t1.y() : t1.y() - t0.y();
+    float alpha = (float) i / total_height;
+    float beta = (float) (i - (second_half ? t1.y() - t0.y() : 0))
+        / segment_height; // be careful: with above conditions no division by zero here
+    Vector2i A = t0 + ((t2 - t0).cast<float>()*alpha).cast<int>();
+    Vector2i B = second_half ? t1 + ((t2 - t1).cast<float>() * beta).cast<int>() : t0 + ((t1 - t0).cast<float>() * beta).cast<int>();
+    if (A.x() > B.x()) std::swap(A, B);
+    for (int j = A.x(); j <= B.x(); j++) {
+      put_pixel(pix, color, j, t0.y() + i); // attention, due to int casts t0.y()+i != A.y
+    }
+  }
+}
+
+int main(int argc, char **argv) {
+  if (2 == argc) {
     model = new Model(argv[1]);
   } else {
     model = new Model("../../obj/african_head.obj");
@@ -147,23 +173,18 @@ int main(int argc, char** argv) {
 
     SDL_LockTexture(gTexture, NULL, &pix, &pitch);
     Clear((Uint32 *) pix, BLACK);
-//    Line(0, 0, width, height, (Uint32 *) pix, WHITE);
-    for (int i=0; i<model->nfaces(); i++) {
-      std::vector<int> face = model->face(i);
-      for (int j=0; j<3; j++) {
-        Vector3f v0 = model->vert(face[j]);
-        Vector3f v1 = model->vert(face[(j+1)%3]);
-        int x0 = (v0.x()+1.)*width/2.;
-        int y0 = (v0.y()+1.)*height/2.;
-        int x1 = (v1.x()+1.)*width/2.;
-        int y1 = (v1.y()+1.)*height/2.;
-        Line(x0, y0, x1, y1, (Uint32 *)pix, WHITE);
-      }
-    }
+    Vector2i t0[3] = {Vector2i(10, 70),   Vector2i(50, 160),  Vector2i(70, 80)};
+    Vector2i t1[3] = {Vector2i(180, 50),  Vector2i(150, 1),   Vector2i(70, 180)};
+    Vector2i t2[3] = {Vector2i(180, 150), Vector2i(120, 160), Vector2i(130, 180)};
+
+    Triangle(t0[0], t0[1], t0[2],(Uint32 *) pix, RED);
+    Triangle(t1[0], t1[1], t1[2], (Uint32 *)pix, WHITE);
+    Triangle(t2[0], t2[1], t2[2],(Uint32 *) pix, GREEN);
     SDL_UnlockTexture(gTexture);
 
     SDL_RenderCopy(gRender, gTexture, NULL, NULL);
     SDL_RenderPresent(gRender);
+    usleep(1000);
   }
   close();
 }
