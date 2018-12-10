@@ -123,9 +123,13 @@ int main(int argc, char **argv) {
         model = new Model("../../obj/african_head.obj");
     }
 
+    Vector3f light_dir(0, 0, -1.);
+
     void *pix;
     int pitch;
+
     init();
+
 
     int x_current(0);
     int y_current(0);
@@ -137,6 +141,7 @@ int main(int argc, char **argv) {
     SDL_Event e;
 
     float deltaX(0), deltaY(0), deltaZ(0);
+
     // While application is running
     while (!quit) {
         // Handle events on queue
@@ -185,14 +190,22 @@ int main(int argc, char **argv) {
         for (int i = 0; i < model->nfaces(); i++) {
             std::vector<int> face = model->face(i);
             Vector2i screen_coords[3];
+            Vector3f world_coords[3];
             for (int j = 0; j < 3; j++) {
-                Vector3f world_coords = model->vert(face[j]);
-                screen_coords[j] << (1. + world_coords.x()) * width / 2., (1. + world_coords.y()) * height / 2.;
+                Vector3f v = model->vert(face[j]);
+                screen_coords[j] << (1. + v.x()) * width / 2., (1. + v.y()) * height / 2.;
+                world_coords[j] = v;
             }
-            Triangle(screen_coords[0], screen_coords[1], screen_coords[2], (Uint32 *) pix,
-                     SDL_MapRGBA(SDL_AllocFormat(SDL_PIXELFORMAT_RGBA8888),
-                                 static_cast<Uint8>(std::rand() % 255), static_cast<Uint8>(std::rand() % 255),
-                                 static_cast<Uint8>(std::rand() % 255), 255));
+
+            Vector3f n = (world_coords[2] - world_coords[0]).cross(world_coords[1] - world_coords[0]);
+            n.normalize();
+            float intensity = n.dot(light_dir);
+            if (intensity > 0) {
+                Triangle(screen_coords[0], screen_coords[1], screen_coords[2], (Uint32 *) pix,
+                         SDL_MapRGBA(SDL_AllocFormat(SDL_PIXELFORMAT_RGBA8888),
+                                     static_cast<Uint8>(intensity * 255), static_cast<Uint8>(intensity * 255),
+                                     static_cast<Uint8>(intensity * 255), 255));
+            }
         }
 
         // Render end
