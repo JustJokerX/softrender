@@ -274,14 +274,22 @@ int main(int argc, char **argv) {
     // Render face
     for (int i = 0; i < model->nfaces(); i++) {
       std::vector<int> face = model->face(i);
-      Vector3f pts[3];
-      for (int i = 0; i < 3; i++) pts[i] = world2screen(model->vert(face[i]));
+      Vector3f screen_coords[3];
+      Vector3f world_coords[3];
       Uint32 colors[3];
+//      Vector3f n_v[3];
       for (int j = 0; j < 3; ++j) {
-        colors[j] = SDL_MapRGBA(pixFormat, rand() % 255, rand() % 255, rand() % 255,
-                                255);
+        Vector3f v = model->vert(face[j]);
+        colors[j] = SDL_MapRGBA(pixFormat,
+                                model->diffuse(model->uv(i, j))[2],
+                                model->diffuse(model->uv(i, j))[1],
+                                model->diffuse(model->uv(i, j))[0],
+                                model->diffuse(model->uv(i, j))[3]);
+//        n_v[j] = model->normal(i, j);
+        screen_coords[j] = world2screen(v);
+        world_coords[j] = v;
       }
-      Triangle(pts, zbuffer, (Uint32 *) pix, colors);
+      Triangle(screen_coords, zbuffer, (Uint32 *) pix, colors);
     }
 
     // Render end
