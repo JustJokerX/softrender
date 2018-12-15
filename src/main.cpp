@@ -277,18 +277,32 @@ int main(int argc, char **argv) {
       Vector3f screen_coords[3];
       Vector3f world_coords[3];
       Uint32 colors[3];
-//      Vector3f n_v[3];
+      Vector3f n_v[3];
+      float intensity[3];
+      // load texture data
       for (int j = 0; j < 3; ++j) {
         Vector3f v = model->vert(face[j]);
-        colors[j] = SDL_MapRGBA(pixFormat,
-                                model->diffuse(model->uv(i, j))[2],
-                                model->diffuse(model->uv(i, j))[1],
-                                model->diffuse(model->uv(i, j))[0],
-                                model->diffuse(model->uv(i, j))[3]);
-//        n_v[j] = model->normal(i, j);
+
+        n_v[j] = model->normal(i, j);
         screen_coords[j] = world2screen(v);
         world_coords[j] = v;
+        intensity[j] = -1.0f * (n_v[j].dot(light_dir));
+        if(intensity[j] > 0){
+          colors[j] = SDL_MapRGBA(pixFormat,
+                                  static_cast<Uint8>(model->diffuse(model->uv(i, j))[2]*intensity[j]),
+                                  static_cast<Uint8>(model->diffuse(model->uv(i, j))[1]*intensity[j]),
+                                  static_cast<Uint8>(model->diffuse(model->uv(i, j))[0]*intensity[j]),
+                                  model->diffuse(model->uv(i, j))[3]);
+        } else {
+          colors[j] = SDL_MapRGBA(pixFormat,
+                                  model->diffuse(model->uv(i, j))[2],
+                                  model->diffuse(model->uv(i, j))[1],
+                                  model->diffuse(model->uv(i, j))[0],
+                                  model->diffuse(model->uv(i, j))[3]);
+        }
       }
+
+      // tessellation
       Triangle(screen_coords, zbuffer, (Uint32 *) pix, colors);
     }
 
