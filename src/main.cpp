@@ -21,9 +21,11 @@
 
 #include <SDL2/SDL.h>
 #include <zconf.h>
+#include <iostream>
 
 const int width = 800;
 const int height = 800;
+const int depth = 255;
 
 using Eigen::Vector3f;
 using Eigen::Matrix4f;
@@ -34,6 +36,10 @@ Uint32 WHITE = SDL_MapRGBA(pixFormat, 255, 255, 255, 255);
 Uint32 BLACK = SDL_MapRGBA(pixFormat, 0, 0, 0, 255);
 Uint32 RED = SDL_MapRGBA(pixFormat, 255, 0, 0, 255);
 Uint32 GREEN = SDL_MapRGBA(pixFormat, 0, 255, 0, 255);
+
+Vector3f light_dir(1, -1, 1);
+Vector3f eye(1, 1, 3);
+Vector3f center(0, 0, 0);
 
 Model *model = NULL;
 SDL_Window *gWindow = NULL;
@@ -126,11 +132,13 @@ Vector3f barycentric(Vector3f A, Vector3f B, Vector3f C, Vector3f P) {
   }
   Vector3f u = s[0].cross(s[1]);
   if (std::abs(u[2]) > 1e-2) // dont forget that u[2] is integer. If it is zero then triangle ABC is degenerate
+  {
     return Vector3f(1.f - (u.x() + u.y()) / u.z(), u.y() / u.z(), u.x() / u.z());
+  }
   return Vector3f(-1, 1, 1); // in this case generate negative coordinates, it will be thrown away by the rasterizator
 }
 
-void Triangle(Vector3f *pts, float *zbuffer, Uint32 *pix, Uint32 color) {
+void Triangle(Vector3f *pts, int *zbuffer, Uint32 *pix, Uint32 color) {
   Vector2f bboxmin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
   Vector2f bboxmax(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
   Vector2f clamp(width - 1, height - 1);
@@ -183,19 +191,104 @@ void Triangle(Vector3f *pts, float *zbuffer, Uint32 *pix, Uint32 *colors) {
           a_add += a * bc_screen[i];
         }
       }
-
       Uint32 color = SDL_MapRGBA(pixFormat, r_add, g_add, b_add, a_add);
-
-      if (zbuffer[int(P.x() + P.y() * width)] < P.z()) {
-        zbuffer[int(P.x() + P.y() * width)] = P.z();
+      int idx = P.x()+P.y() * width;
+      if (zbuffer[idx] < P.z()) {
+        zbuffer[idx] = P.z();
         put_pixel(pix, color, P.x(), P.y());
       }
     }
   }
 }
 
+Vector3f barycentric(Vector3i A, Vector3i B, Vector3i C, Vector3i P) {
+  Vector3i s[2];
+  for (int i = 2; i--;) {
+    s[i][0] = C[i] - A[i];
+    s[i][1] = B[i] - A[i];
+    s[i][2] = A[i] - P[i];
+  }
+  Vector3f u = (s[0].cross(s[1])).cast<float>();
+  if (std::abs(u[2]) > 1e-2) // dont forget that u[2] is integer. If it is zero then triangle ABC is degenerate
+  {
+    return Vector3f(1.f - (u.x() + u.y()) / u.z(), u.y() / u.z(), u.x() / u.z());
+  }
+  return Vector3f(-1, 1, 1); // in this case generate negative coordinates, it will be thrown away by the rasterizator
+}
+
+void Triangle(Vector3i *pts, int *zbuffer, Uint32 *pix, Uint32 *colors) {
+  Vector2i bboxmin(std::numeric_limits<int>::max(), std::numeric_limits<int>::max());
+  Vector2i bboxmax(-std::numeric_limits<int>::max(), -std::numeric_limits<int>::max());
+  Vector2i clamp(width - 1, height - 1);
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 2; j++) {
+      bboxmin[j] = std::max(0, std::min(bboxmin[j], pts[i][j]));
+      bboxmax[j] = std::min(clamp[j], std::max(bboxmax[j], pts[i][j]));
+    }
+  }
+  Vector3i P;
+  for (P.x() = bboxmin.x(); P.x() <= bboxmax.x(); P.x()++) {
+    for (P.y() = bboxmin.y(); P.y() <= bboxmax.y(); P.y()++) {
+      Vector3f bc_screen = barycentric(pts[0], pts[1], pts[2], P);
+      if (bc_screen.x() < 0 || bc_screen.y() < 0 || bc_screen.z() < 0) continue;
+      P.z() = 0;
+      for (int i = 0; i < 3; i++) P.z() += pts[i][2] * bc_screen[i];
+      Uint8 r_add = 0, g_add = 0, b_add = 0, a_add = 0;
+      {
+        Uint8 r, g, b, a;
+        for (int i = 0; i < 3; i++) {
+          SDL_GetRGBA(colors[i], pixFormat, &r, &g, &b, &a);
+          r_add += r * bc_screen[i];
+          g_add += g * bc_screen[i];
+          b_add += b * bc_screen[i];
+          a_add += a * bc_screen[i];
+        }
+      }
+      Uint32 color = SDL_MapRGBA(pixFormat, r_add, g_add, b_add, a_add);
+      int idx = P.x()+P.y() * width;
+      if (zbuffer[idx] < P.z()) {
+        zbuffer[idx] = P.z();
+        put_pixel(pix, color, P.x(), P.y());
+      }
+    }
+  }
+}
+
+Matrix4f viewport(int x, int y, int w, int h) {
+  Matrix4f m;
+  m.setIdentity();
+//  m(0, 3) = w / 2.f;
+//  m(1, 3) = h / 2.f;
+  m(0, 3) = x + w / 2.f;
+  m(1, 3) = y + h / 2.f;
+  m(2, 3) = depth / 2.f;
+
+  m(0, 0) = w / 2.f;
+  m(1, 1) = h / 2.f;
+  m(2, 2) = depth / 2.f;
+  return m;
+}
+
 Vector3f world2screen(Vector3f v) {
   return Vector3f(int((v.x() + 1.) * width / 2. + .5), int((v.y() + 1.) * height / 2. + .5), v.z());
+}
+
+Matrix4f lookat(Vector3f eye, Vector3f center, Vector3f up) {
+  Vector3f z = (eye - center);
+  z.normalize();
+  Vector3f x = up.cross(z);
+  x.normalize();
+  Vector3f y = z.cross(x);
+  y.normalize();
+  Matrix4f res;
+  res.setIdentity();
+  for (int i = 0; i < 3; i++) {
+    res(0, i) = x[i];
+    res(1, i) = y[i];
+    res(2, i) = z[i];
+    res(i, 3) = -center[i];
+  }
+  return res;
 }
 
 int main(int argc, char **argv) {
@@ -205,10 +298,8 @@ int main(int argc, char **argv) {
     model = new Model("../../obj/african_head.obj");
   }
 
-  Vector3f light_dir(0, 0, -1.);
-
-  float *zbuffer = new float[width * height];
-
+  int *zbuffer = new int[width * height];
+  light_dir.normalize();
   void *pix;
   int pitch;
 
@@ -269,29 +360,50 @@ int main(int argc, char **argv) {
     // Clear color
     Clear((Uint32 *) pix, BLACK);
 
-    for (int i = width * height; i--; zbuffer[i] = -std::numeric_limits<float>::max());
+    Matrix4f ModelView = lookat(eye, center, Vector3f(0, 1, 0));
+    Matrix4f Projection;
+    Projection.setIdentity();
+    Matrix4f ViewPort = viewport(width / 8, height / 8, width * 3 / 4, height * 3 / 4);
+//    Matrix4f ViewPort = viewport(width / 8, height / 8, width, height);
+    Projection(3, 2) = -1.f / (eye - center).norm();
+    std::cerr << "ModelView" << std::endl;
+    std::cerr << ModelView << std::endl;
+    std::cerr << "Projection" << std::endl;
+    std::cerr << Projection << std::endl;
+    std::cerr << "ViewPort" << std::endl;
+    std::cerr << ViewPort << std::endl;
+    Matrix4f z = ViewPort * Projection * ModelView;
+    std::cerr << z << std::endl;
 
+    for (int i = width * height; i--; zbuffer[i] = std::numeric_limits<int>::min());
     // Render face
     for (int i = 0; i < model->nfaces(); i++) {
       std::vector<int> face = model->face(i);
-      Vector3f screen_coords[3];
+      Vector3i screen_coords[3];
       Vector3f world_coords[3];
       Uint32 colors[3];
       Vector3f n_v[3];
       float intensity[3];
+
       // load texture data
       for (int j = 0; j < 3; ++j) {
         Vector3f v = model->vert(face[j]);
-
         n_v[j] = model->normal(i, j);
-        screen_coords[j] = world2screen(v);
+        Vector4f v_;
+        v_ << v, 1;
+        Vector4f v_temp;
+        v_temp = ViewPort * Projection * ModelView * v_;
+        v_temp = v_temp/v_temp.w();
+        screen_coords[j] = (v_temp).cast<int>().block(0, 0, 3, 1);
+//        screen_coords[j] = ((ViewPort * v_).cast<int>().block(0, 0, 3, 1)) ;
+
         world_coords[j] = v;
         intensity[j] = -1.0f * (n_v[j].dot(light_dir));
-        if(intensity[j] > 0){
+        if (intensity[j] > 0) {
           colors[j] = SDL_MapRGBA(pixFormat,
-                                  static_cast<Uint8>(model->diffuse(model->uv(i, j))[2]*intensity[j]),
-                                  static_cast<Uint8>(model->diffuse(model->uv(i, j))[1]*intensity[j]),
-                                  static_cast<Uint8>(model->diffuse(model->uv(i, j))[0]*intensity[j]),
+                                  static_cast<Uint8>(model->diffuse(model->uv(i, j))[2] * intensity[j]),
+                                  static_cast<Uint8>(model->diffuse(model->uv(i, j))[1] * intensity[j]),
+                                  static_cast<Uint8>(model->diffuse(model->uv(i, j))[0] * intensity[j]),
                                   model->diffuse(model->uv(i, j))[3]);
         } else {
           colors[j] = SDL_MapRGBA(pixFormat,
@@ -300,11 +412,23 @@ int main(int argc, char **argv) {
                                   model->diffuse(model->uv(i, j))[0],
                                   model->diffuse(model->uv(i, j))[3]);
         }
+
       }
 
       // tessellation
       Triangle(screen_coords, zbuffer, (Uint32 *) pix, colors);
     }
+
+//    { // dump z-buffer (debugging purposes only)
+//      TGAImage zbimage(width, height, TGAImage::GRAYSCALE);
+//      for (int i=0; i<width; i++) {
+//        for (int j=0; j<height; j++) {
+//          zbimage.set(i, j, TGAColor(zbuffer[i+j*width]*255));
+//        }
+//      }
+//      zbimage.flip_vertically(); // i want to have the origin at the left bottom corner of the image
+//      zbimage.write_tga_file("zbuffer.tga");
+//    }
 
     // Render end
     SDL_UnlockTexture(gTexture);
