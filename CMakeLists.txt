@@ -22,6 +22,8 @@ if (APPLE OR UNIX)
     set(LIBS ${LIBS} ${APPLE_LIBS})
 endif ()
 
+include_directories(${CMAKE_SOURCE_DIR}/api)
+
 file(GLOB SOURCE
         "src/*.h"
         "src/*.cpp"
