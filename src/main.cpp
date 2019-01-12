@@ -6,7 +6,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <limits>
-
+#include <algorithm>
 #include "../imported/eigen/Eigen/Dense"
 #include "../imported/eigen/Eigen/Geometry"
 #include "Model.h"
@@ -141,71 +141,19 @@ Vector3f barycentric(Vector3i A, Vector3i B, Vector3i C, Vector3i P) {
   return Vector3f(-1, 1, 1); // in this case generate negative coordinates, it will be thrown away by the rasterizator
 }
 
-int Det(Vector3i A, Vector3i B, Vector3i C)
-{
-  return (B.x()-A.x())*(C.y()-A.y())-(B.y()-A.y())*(C.x()-A.x());
+int Det(Vector3f A, Vector3f B, Vector3f C) {
+  return (B.x() - A.x()) * (C.y() - A.y()) - (B.y() - A.y()) * (C.x() - A.x());
 }
 
-void TriangleFast(Vector3i *pts, int *zbuffer, Uint32 *pix, Uint32 *colors) {
+void TriangleFast2(Vector3f *pts, int *zbuffer, Uint32 *pix, Uint32 *colors) {
   Vector2i bboxmin(std::numeric_limits<int>::max(), std::numeric_limits<int>::max());
   Vector2i bboxmax(-std::numeric_limits<int>::max(), -std::numeric_limits<int>::max());
   Vector2i clamp(width - 1, height - 1);
+
   for (int i = 0; i < 3; i++) {
     for (int j = 0; j < 2; j++) {
-      bboxmin[j] = std::max(0, std::min(bboxmin[j], pts[i][j]));
-      bboxmax[j] = std::min(clamp[j], std::max(bboxmax[j], pts[i][j]));
-    }
-  }
-  float Den = Det(pts[0],pts[1],pts[2]);
-
-  Vector3i P;
-  float z_inv_p;
-  float z_p;
-  for (P.x() = bboxmin.x(); P.x() <= bboxmax.x(); P.x()++) {
-    for (P.y() = bboxmin.y(); P.y() <= bboxmax.y(); P.y()++) {
-      float NonI = Det(pts[0],P,pts[2]);
-      float NonJ = Det(pts[0],pts[1],P);
-      float I = NonI / Den;
-      float J = NonJ / Den;
-      float IJ1 = 1-I-J;
-      if(I < 0 ||J <0 ||IJ1<0) continue;
-      P.z() = 0;
-      float z_inv_0 =1.0/pts[0][2];
-      float z_inv_1 =1.0/pts[1][2];
-      float z_inv_2 =1.0/pts[2][2];
-
-      z_inv_p = IJ1*z_inv_0 + I*z_inv_1 + J*z_inv_2;
-      assert(z_inv_p > 1e-8);
-      z_p = 1.0 / z_inv_p;
-      Uint8 r_add = 0, g_add = 0, b_add = 0, a_add = 0;
-      {
-        Uint8 r[3], g[3], b[3], a[3];
-        for (int i = 0; i < 3; i++) {
-          SDL_GetRGBA(colors[i], pixFormat, &r[i], &g[i], &b[i], &a[i]);
-        }
-        r_add = z_p*(IJ1*z_inv_0*r[0]+I*z_inv_1*r[1]+J*z_inv_2*r[2]);
-        g_add = z_p*(IJ1*z_inv_0*g[0]+I*z_inv_1*g[1]+J*z_inv_2*g[2]);
-        b_add = z_p*(IJ1*z_inv_0*b[0]+I*z_inv_1*b[1]+J*z_inv_2*b[2]);
-      }
-      P.z() = z_p;
-      Uint32 color = SDL_MapRGBA(pixFormat, r_add, g_add, b_add, a_add);
-      int idx = P.x() + P.y() * width;
-      if (zbuffer[idx] < P.z()) {
-        zbuffer[idx] = P.z();
-        put_pixel(pix, color, P.x(), P.y());
-      }
-    }
-  }
-}
-
-void TriangleFast2(Vector3i *pts, int *zbuffer, Uint32 *pix, Uint32 *colors) {
-  Vector2i bboxmin(std::numeric_limits<int>::max(), std::numeric_limits<int>::max());
-  Vector2i bboxmax(-std::numeric_limits<int>::max(), -std::numeric_limits<int>::max());
-  Vector2i clamp(width - 1, height - 1);
-  for (int i = 0; i < 3; i++) {
-    for (int j = 0; j < 2; j++) {
-      bboxmin[j] = std::max(0, std::min(bboxmin[j], pts[i][j]));
-      bboxmax[j] = std::min(clamp[j], std::max(bboxmax[j], pts[i][j]));
+      bboxmin[j] = std::max(0, std::min(bboxmin[j], (int) (pts[i][j] + 0.5)));
+      bboxmax[j] = std::min(clamp[j], std::max(bboxmax[j], (int) (pts[i][j] + 0.5)));
     }
   }
 
@@ -214,9 +162,9 @@ void TriangleFast2(Vector3i *pts, int *zbuffer, Uint32 *pix, Uint32 *colors) {
     SDL_GetRGBA(colors[i], pixFormat, &r[i], &g[i], &b[i], &a[i]);
   }
 
-  float z_inv_0 =1.0/pts[0][2];
-  float z_inv_1 =1.0/pts[1][2];
-  float z_inv_2 =1.0/pts[2][2];
+  float z_inv_0 = 1.0 / pts[0][2];
+  float z_inv_1 = 1.0 / pts[1][2];
+  float z_inv_2 = 1.0 / pts[2][2];
 
   float y_0 = pts[0][1];
   float y_1 = pts[1][1];
@@ -226,57 +174,80 @@ void TriangleFast2(Vector3i *pts, int *zbuffer, Uint32 *pix, Uint32 *colors) {
   float x_1 = pts[1][0];
   float x_2 = pts[2][0];
 
-  float Den = Det(pts[0],pts[1],pts[2]);
+  Vector2f n_pq(pts[0].y() - pts[1].y(), pts[1].x() - pts[0].x());
+  Vector2f n_qr(pts[1].y() - pts[2].y(), pts[2].x() - pts[1].x());
+  Vector2f n_rp(pts[2].y() - pts[0].y(), pts[0].x() - pts[2].x());
+  Vector2f v_p = pts[0].block(0, 0, 2, 1);
+  Vector2f v_q = pts[1].block(0, 0, 2, 1);
+  Vector2f v_r = pts[2].block(0, 0, 2, 1);
 
-  float D_Zpinv_x = ((y_2 -y_0)*(z_inv_1-z_inv_0)+(y_0-y_1)*(z_inv_2-z_inv_0))/Den;
-  float D_Zpinv_y = ((x_0 -x_2)*(z_inv_1-z_inv_0)+(x_1-x_0)*(z_inv_2-z_inv_0))/Den;
+  float c_pq = -1.f * (n_pq.dot(v_p));
+  float c_qr = -1.f * (n_qr.dot(v_q));
+  float c_rp = -1.f * (n_rp.dot(v_r));
 
-  float D_Zpinv_x_r = ((y_2 -y_0)*(z_inv_1*r[1]-z_inv_0*r[0])+(y_0-y_1)*(z_inv_2*r[2]-z_inv_0*r[0]))/Den;
-  float D_Zpinv_y_r = ((x_0 -x_2)*(z_inv_1*r[1]-z_inv_0*r[0])+(x_1-x_0)*(z_inv_2*r[2]-z_inv_0*r[0]))/Den;
+  float Den = Det(pts[0], pts[1], pts[2]);
 
-  float D_Zpinv_x_g = ((y_2 -y_0)*(z_inv_1*g[1]-z_inv_0*g[0])+(y_0-y_1)*(z_inv_2*g[2]-z_inv_0*g[0]))/Den;
-  float D_Zpinv_y_g = ((x_0 -x_2)*(z_inv_1*g[1]-z_inv_0*g[0])+(x_1-x_0)*(z_inv_2*g[2]-z_inv_0*g[0]))/Den;
+  float D_Zpinv_x = ((y_2 - y_0) * (z_inv_1 - z_inv_0) + (y_0 - y_1) * (z_inv_2 - z_inv_0)) / Den;
+  float D_Zpinv_y = ((x_0 - x_2) * (z_inv_1 - z_inv_0) + (x_1 - x_0) * (z_inv_2 - z_inv_0)) / Den;
 
-  float D_Zpinv_x_b = ((y_2 -y_0)*(z_inv_1*b[1]-z_inv_0*b[0])+(y_0-y_1)*(z_inv_2*b[2]-z_inv_0*b[0]))/Den;
-  float D_Zpinv_y_b = ((x_0 -x_2)*(z_inv_1*b[1]-z_inv_0*b[0])+(x_1-x_0)*(z_inv_2*b[2]-z_inv_0*b[0]))/Den;
+  float D_Zpinv_x_r =
+      ((y_2 - y_0) * (z_inv_1 * r[1] - z_inv_0 * r[0]) + (y_0 - y_1) * (z_inv_2 * r[2] - z_inv_0 * r[0])) / Den;
+  float D_Zpinv_y_r =
+      ((x_0 - x_2) * (z_inv_1 * r[1] - z_inv_0 * r[0]) + (x_1 - x_0) * (z_inv_2 * r[2] - z_inv_0 * r[0])) / Den;
 
+  float D_Zpinv_x_g =
+      ((y_2 - y_0) * (z_inv_1 * g[1] - z_inv_0 * g[0]) + (y_0 - y_1) * (z_inv_2 * g[2] - z_inv_0 * g[0])) / Den;
+  float D_Zpinv_y_g =
+      ((x_0 - x_2) * (z_inv_1 * g[1] - z_inv_0 * g[0]) + (x_1 - x_0) * (z_inv_2 * g[2] - z_inv_0 * g[0])) / Den;
+
+  float D_Zpinv_x_b =
+      ((y_2 - y_0) * (z_inv_1 * b[1] - z_inv_0 * b[0]) + (y_0 - y_1) * (z_inv_2 * b[2] - z_inv_0 * b[0])) / Den;
+  float D_Zpinv_y_b =
+      ((x_0 - x_2) * (z_inv_1 * b[1] - z_inv_0 * b[0]) + (x_1 - x_0) * (z_inv_2 * b[2] - z_inv_0 * b[0])) / Den;
 
   float z_p;
   float z_inv_p;
 
-  z_inv_p = z_inv_0 +(bboxmin.x() - x_0)*D_Zpinv_x +(bboxmin.y() - y_0)*D_Zpinv_y;
-  z_p = 1.0/z_inv_p;
-  float r_i_p =  (r[0]*z_inv_0 +(bboxmin.x()-x_0)*D_Zpinv_x_r +(bboxmin.y()-y_0)*D_Zpinv_y_r);
-  float g_i_p =  (g[0]*z_inv_0 +(bboxmin.x()-x_0)*D_Zpinv_x_g +(bboxmin.y()-y_0)*D_Zpinv_y_g);
-  float b_i_p =  (b[0]*z_inv_0 +(bboxmin.x()-x_0)*D_Zpinv_x_b +(bboxmin.y()-y_0)*D_Zpinv_y_b);
+  z_inv_p = z_inv_0 + (bboxmin.x() - x_0) * D_Zpinv_x + (bboxmin.y() - y_0) * D_Zpinv_y;
+  z_p = 1.0 / z_inv_p;
+  float r_i_p = (r[0] * z_inv_0 + (bboxmin.x() - x_0) * D_Zpinv_x_r + (bboxmin.y() - y_0) * D_Zpinv_y_r);
+  float g_i_p = (g[0] * z_inv_0 + (bboxmin.x() - x_0) * D_Zpinv_x_g + (bboxmin.y() - y_0) * D_Zpinv_y_g);
+  float b_i_p = (b[0] * z_inv_0 + (bboxmin.x() - x_0) * D_Zpinv_x_b + (bboxmin.y() - y_0) * D_Zpinv_y_b);
 
   Vector3i P;
   for (P.x() = bboxmin.x(); P.x() <= bboxmax.x(); P.x()++) {
-    z_inv_p += D_Zpinv_x;
-    r_i_p += D_Zpinv_x_r;
-    g_i_p += D_Zpinv_x_g;
-    b_i_p += D_Zpinv_x_b;
     float z_inv_p_base = z_inv_p;
     float r_i_p_base = r_i_p;
     float g_i_p_base = g_i_p;
     float b_i_p_base = b_i_p;
-
+    z_inv_p += D_Zpinv_x;
+    r_i_p += D_Zpinv_x_r;
+    g_i_p += D_Zpinv_x_g;
+    b_i_p += D_Zpinv_x_b;
     for (P.y() = bboxmin.y(); P.y() <= bboxmax.y(); P.y()++) {
-//      float NonI = Det(pts[0],P,pts[2]);
-//      float NonJ = Det(pts[0],pts[1],P);
-//      float I = NonI / Den;
-//      float J = NonJ / Den;
-//      float IJ1 = 1-I-J;
-//      if(I < 0 ||J <0 ||IJ1<0) continue;
+
       P.z() = 0;
 
-      z_inv_p_base +=  D_Zpinv_y;
-      r_i_p_base +=  D_Zpinv_y_r;
-      g_i_p_base +=  D_Zpinv_y_g;
-      b_i_p_base +=  D_Zpinv_y_b;
-      z_p = 1.0/z_inv_p_base;
+      z_p = 1.0 / z_inv_p_base;
       P.z() = z_p;
-      Uint32 color = SDL_MapRGBA(pixFormat, r_i_p_base*z_p, g_i_p_base*z_p, b_i_p_base*z_p, 255);
+      Uint32 color = SDL_MapRGBA(pixFormat, r_i_p_base * z_p, g_i_p_base * z_p, b_i_p_base * z_p, 255);
+
+      z_inv_p_base += D_Zpinv_y;
+      r_i_p_base += D_Zpinv_y_r;
+      g_i_p_base += D_Zpinv_y_g;
+      b_i_p_base += D_Zpinv_y_b;
+
+      Vector2f s = P.cast<float>().block(0, 0, 2, 1);
+      float e_pq_s = n_pq.dot(s) + c_pq;
+      if (e_pq_s >= 0) {
+        float e_qr_s = n_qr.dot(s) + c_qr;
+        if (e_qr_s >= 0) {
+          float e_rp_s = n_rp.dot(s) + c_rp;
+          if (e_rp_s < 0)
+            continue;
+        } else continue;
+      } else continue;
+
       int idx = P.x() + P.y() * width;
       if (zbuffer[idx] < P.z()) {
         zbuffer[idx] = P.z();
@@ -285,7 +256,6 @@ void TriangleFast2(Vector3i *pts, int *zbuffer, Uint32 *pix, Uint32 *colors) {
     }
   }
 }
-
 
 void Triangle(Vector3i *pts, int *zbuffer, Uint32 *pix, Uint32 *colors) {
   Vector2i bboxmin(std::numeric_limits<int>::max(), std::numeric_limits<int>::max());
@@ -330,12 +300,12 @@ void Triangle(Vector3i *pts, int *zbuffer, Uint32 *pix, Uint32 *colors) {
 }
 
 template<typename T>
-class Device{
+class Device {
  public:
   void sr_glViewport(GLint x,
-                  GLint y,
-                  GLsizei width,
-                  GLsizei height) {
+                     GLint y,
+                     GLsizei width,
+                     GLsizei height) {
     viewPort.m_x = x;
     viewPort.m_y = y;
     viewPort.m_width = width;
@@ -343,12 +313,12 @@ class Device{
   }
 
   void sr_glDepthRange(T nearVal,
-                    T farVal) {
+                       T farVal) {
     viewPort.m_nearVal = nearVal;
     viewPort.m_farVal = farVal;
   }
  private:
-  struct ViewPort{
+  struct ViewPort {
     GLint m_x = 0;
     GLint m_y = 0;
     GLsizei m_width = 1;
@@ -359,7 +329,6 @@ class Device{
  protected:
   ViewPort viewPort;
 };
-
 
 Matrix4f viewport(int x, int y, int w, int h) {
   Matrix4f m;
@@ -405,8 +374,8 @@ int main(int argc, char **argv) {
 
 //add device
   Device<GLfloat> m_device;
-  m_device.sr_glViewport(0,0,800,800);
-  m_device.sr_glDepthRange(0,1);
+  m_device.sr_glViewport(0, 0, 800, 800);
+  m_device.sr_glDepthRange(0, 1);
 
   int *zbuffer = new int[width * height];
   light_dir.normalize();
@@ -426,7 +395,7 @@ int main(int argc, char **argv) {
 
   float deltaX(1), deltaY(1), deltaZ(3);
 
-  eye  << deltaX, deltaY, deltaZ;
+  eye << deltaX, deltaY, deltaZ;
 
   // While application is running
   while (!quit) {
@@ -473,7 +442,7 @@ int main(int argc, char **argv) {
     Clear((Uint32 *) pix, BLACK);
 
     // Eye and center position
-    eye  << deltaX, deltaY, deltaZ;
+    eye << deltaX, deltaY, deltaZ;
 
     Matrix4f ModelView = lookat(eye, center, Vector3f(0, 1, 0));
     Matrix4f Projection;
@@ -489,80 +458,83 @@ int main(int argc, char **argv) {
     Matrix4f z = ViewPort * Projection * ModelView;
     std::cerr << z << std::endl;
 
-    for (int i = width * height; i--; zbuffer[i] = std::numeric_limits<int>::min());
+//    for (int i = width * height; i--; zbuffer[i] = std::numeric_limits<int>::min());
+    for (int i = 0; i < width * height; i++) {
+      zbuffer[i] = std::numeric_limits<int>::min();
+    }
     // Render face
-//    for (int i = 0; i < model->nfaces(); i++) {
-//      std::vector<int> face = model->face(i);
-//      Vector3i screen_coords[3];
-//      Vector3f world_coords[3];
-//      Uint32 colors[3];
-//      Vector3f n_v[3];
-//      float intensity[3];
-//
-//      // load texture data
-//      for (int j = 0; j < 3; ++j) {
-//        Vector3f v = model->vert(face[j]);
-//        n_v[j] = model->normal(i, j);
-//
-//        Vector4f v_;
-//        v_ << v, 1;
-//        Vector4f v_temp;
-//        v_temp = ViewPort * Projection * ModelView * v_;
-//        v_temp = v_temp / v_temp.w();
-//        screen_coords[j] = (v_temp).cast<int>().block(0, 0, 3, 1);
-//
-//        world_coords[j] = v;
-//        intensity[j] = -1.0f * (n_v[j].dot(light_dir));
-//        if (intensity[j] > 0) {
-//          colors[j] = SDL_MapRGBA(pixFormat,
-//                                  static_cast<Uint8>(model->diffuse(model->uv(i, j))[2] * intensity[j]),
-//                                  static_cast<Uint8>(model->diffuse(model->uv(i, j))[1] * intensity[j]),
-//                                  static_cast<Uint8>(model->diffuse(model->uv(i, j))[0] * intensity[j]),
-//                                  model->diffuse(model->uv(i, j))[3]);
-//        } else {
-//          colors[j] = SDL_MapRGBA(pixFormat,
-//                                  model->diffuse(model->uv(i, j))[2],
-//                                  model->diffuse(model->uv(i, j))[1],
-//                                  model->diffuse(model->uv(i, j))[0],
-//                                  model->diffuse(model->uv(i, j))[3]);
-//        }
-//
-//      }
-//
-//      // back face culling
-//      Vector3i AB = screen_coords[0]-screen_coords[1];
-//      Vector3i AC = screen_coords[0]-screen_coords[2];
-//      Vector3i N = AC.cross(AB);
-//      if(N.z()>0){
-//        continue;
-//      }
-//
-//      // tessellation
-//      Triangle(screen_coords, zbuffer, (Uint32 *) pix, colors);
-//    }
+    for (int i = 0; i < model->nfaces(); i++) {
+      std::vector<int> face = model->face(i);
+      Vector3f screen_coords[3];
+      Vector3f world_coords[3];
+      Uint32 colors[3];
+      Vector3f n_v[3];
+      float intensity[3];
 
-    Vector3f world_coords[3];
-    world_coords[0] << 0, 0, 0.99;
-    world_coords[1] << 1, 0.5, 0.99;
-    world_coords[2] << 0.5, 1, -0.99;
+      // load texture data
+      for (int j = 0; j < 3; ++j) {
+        Vector3f v = model->vert(face[j]);
+        n_v[j] = model->normal(i, j);
 
-    Vector3i screen_coords[3];
+        Vector4f v_;
+        v_ << v, 1;
+        Vector4f v_temp;
+        v_temp = ViewPort * Projection * ModelView * v_;
+        v_temp = v_temp / v_temp.w();
+        screen_coords[j] = (v_temp).block(0, 0, 3, 1);
 
-    Uint32 colors[3];
-    colors[0] = RED;
-    colors[1] = GREEN;
-    colors[2] = BLUE;
-    for (int j = 0; j < 3; ++j) {
-      Vector4f v_;
-      v_ << world_coords[j].cast<float>(), 1;
-      Vector4f v_temp;
-      v_temp = ViewPort * Projection * ModelView * v_;
-      v_temp = v_temp / v_temp.w();
-      screen_coords[j] = (v_temp).cast<int>().block(0, 0, 3, 1);
+        world_coords[j] = v;
+        intensity[j] = -1.0f * (n_v[j].dot(light_dir));
+        if (intensity[j] > 0) {
+          colors[j] = SDL_MapRGBA(pixFormat,
+                                  static_cast<Uint8>(model->diffuse(model->uv(i, j))[2] * intensity[j]),
+                                  static_cast<Uint8>(model->diffuse(model->uv(i, j))[1] * intensity[j]),
+                                  static_cast<Uint8>(model->diffuse(model->uv(i, j))[0] * intensity[j]),
+                                  model->diffuse(model->uv(i, j))[3]);
+        } else {
+          colors[j] = SDL_MapRGBA(pixFormat,
+                                  model->diffuse(model->uv(i, j))[2],
+                                  model->diffuse(model->uv(i, j))[1],
+                                  model->diffuse(model->uv(i, j))[0],
+                                  model->diffuse(model->uv(i, j))[3]);
+        }
+
+      }
+
+      // back face culling
+      Vector3f AB = screen_coords[0]-screen_coords[1];
+      Vector3f AC = screen_coords[0]-screen_coords[2];
+      Vector3f N = AC.cross(AB);
+      if(N.z()>0){
+        continue;
+      }
+
+      // tessellation
+      TriangleFast2(screen_coords, zbuffer, (Uint32 *) pix, colors);
     }
 
+//    Vector3f world_coords[3];
+//    world_coords[0] << 0, 0, 0.99;
+//    world_coords[1] << 1, 0.5, 0.99;
+//    world_coords[2] << 0.5, 1, -0.99;
+//
+//    Vector3f screen_coords[3];
+//
+//    Uint32 colors[3];
+//    colors[0] = RED;
+//    colors[1] = GREEN;
+//    colors[2] = BLUE;
+//    for (int j = 0; j < 3; ++j) {
+//      Vector4f v_;
+//      v_ << world_coords[j], 1;
+//      Vector4f v_temp;
+//      v_temp = ViewPort * Projection * ModelView * v_;
+//      v_temp = v_temp / v_temp.w();
+//      screen_coords[j] = v_temp.block(0, 0, 3, 1);
+//    }
+
     // tessellation
-    TriangleFast2(screen_coords, zbuffer, (Uint32 *) pix, colors);
+//    TriangleFast2(screen_coords, zbuffer, (Uint32 *) pix, colors);
 
     // Render end
     SDL_UnlockTexture(gTexture);
@@ -570,5 +542,18 @@ int main(int argc, char **argv) {
     SDL_RenderPresent(gRender);
     usleep(1000);
   }
+
+  { // dump z-buffer (debugging purposes only)
+    TGAImage zbimage(width, height, TGAImage::GRAYSCALE);
+    for (int i = 0; i < width; i++) {
+      for (int j = 0; j < height; j++) {
+        unsigned char zzzz = zbuffer[i + j * width];
+        zbimage.set(i, j, TGAColor(&zzzz, 1));
+      }
+    }
+    zbimage.flip_vertically(); // i want to have the origin at the left bottom corner of the image
+    zbimage.write_tga_file("zbuffer.tga");
+  }
+
   close();
 }
