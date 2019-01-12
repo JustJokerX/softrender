@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <limits>
 #include <algorithm>
+#include <time.h>
 #include "../imported/eigen/Eigen/Dense"
 #include "../imported/eigen/Eigen/Geometry"
 #include "Model.h"
@@ -141,7 +142,7 @@ Vector3f barycentric(Vector3i A, Vector3i B, Vector3i C, Vector3i P) {
   return Vector3f(-1, 1, 1); // in this case generate negative coordinates, it will be thrown away by the rasterizator
 }
 
-int Det(Vector3f A, Vector3f B, Vector3f C) {
+float Det(Vector3f A, Vector3f B, Vector3f C) {
   return (B.x() - A.x()) * (C.y() - A.y()) - (B.y() - A.y()) * (C.x() - A.x());
 }
 
@@ -225,7 +226,6 @@ void TriangleFast2(Vector3f *pts, int *zbuffer, Uint32 *pix, Uint32 *colors) {
     g_i_p += D_Zpinv_x_g;
     b_i_p += D_Zpinv_x_b;
     for (P.y() = bboxmin.y(); P.y() <= bboxmax.y(); P.y()++) {
-
       P.z() = 0;
 
       z_p = 1.0 / z_inv_p_base;
@@ -397,8 +397,20 @@ int main(int argc, char **argv) {
 
   eye << deltaX, deltaY, deltaZ;
 
+  // timer
+  clock_t start(0),finish(0);
+  double duration;
+  int frame_count(0);
   // While application is running
   while (!quit) {
+    frame_count++;
+    if(frame_count == 60){
+      finish = clock();
+      duration = (double)(finish - start) / CLOCKS_PER_SEC;
+      printf( "%f  FPS\n", 60/duration);
+      start = clock();
+      frame_count = 0;
+    }
     // Handle events on queue
     while (SDL_PollEvent(&e) != 0) {
       // User requests quit
@@ -449,19 +461,19 @@ int main(int argc, char **argv) {
     Projection.setIdentity();
     Matrix4f ViewPort = viewport(width / 8, height / 8, width * 3 / 4, height * 3 / 4);
     Projection(3, 2) = -1.f / (eye - center).norm();
-    std::cerr << "ModelView" << std::endl;
-    std::cerr << ModelView << std::endl;
-    std::cerr << "Projection" << std::endl;
-    std::cerr << Projection << std::endl;
-    std::cerr << "ViewPort" << std::endl;
-    std::cerr << ViewPort << std::endl;
+//    std::cerr << "ModelView" << std::endl;
+//    std::cerr << ModelView << std::endl;
+//    std::cerr << "Projection" << std::endl;
+//    std::cerr << Projection << std::endl;
+//    std::cerr << "ViewPort" << std::endl;
+//    std::cerr << ViewPort << std::endl;
     Matrix4f z = ViewPort * Projection * ModelView;
-    std::cerr << z << std::endl;
+//    std::cerr << z << std::endl;
 
-//    for (int i = width * height; i--; zbuffer[i] = std::numeric_limits<int>::min());
     for (int i = 0; i < width * height; i++) {
       zbuffer[i] = std::numeric_limits<int>::min();
     }
+
     // Render face
     for (int i = 0; i < model->nfaces(); i++) {
       std::vector<int> face = model->face(i);
@@ -510,6 +522,12 @@ int main(int argc, char **argv) {
       }
 
       // tessellation
+//      Vector3i screen_coords_i[3];
+//      screen_coords_i[0] = screen_coords[0].cast<int>();
+//      screen_coords_i[1] = screen_coords[1].cast<int>();
+//      screen_coords_i[2] = screen_coords[2].cast<int>();
+
+
       TriangleFast2(screen_coords, zbuffer, (Uint32 *) pix, colors);
     }
 
@@ -540,7 +558,7 @@ int main(int argc, char **argv) {
     SDL_UnlockTexture(gTexture);
     SDL_RenderCopy(gRender, gTexture, NULL, NULL);
     SDL_RenderPresent(gRender);
-    usleep(1000);
+    usleep(10);
   }
 
   { // dump z-buffer (debugging purposes only)
