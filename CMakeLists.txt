@@ -10,11 +10,25 @@ endif (NOT CMAKE_BUILD_TYPE)
 
 list(APPEND CMAKE_CXX_FLAGS "-std=c++17")
 
-include(FindPkgConfig)
-PKG_SEARCH_MODULE(SDL2 REQUIRED sdl2)
-message(STATUS "Found SDL2 in ${SDL2_INCLUDE_DIRS}")
-PKG_SEARCH_MODULE(SDL2IMAGE REQUIRED SDL2_image>=2.0.0)
-message(STATUS "Found SDL2IMAGE in ${SDL2IMAGE_INCLUDE_DIRS}")
+if (WIN32)
+    set(SDL2_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/imported/SDL2/include)
+    set(SDL2_LIBRARIES ${CMAKE_SOURCE_DIR}/imported/SDL2/lib/x64/SDL2.lib
+	${CMAKE_SOURCE_DIR}/imported/SDL2/lib/x64/SDL2main.lib
+	${CMAKE_SOURCE_DIR}/imported/SDL2/lib/x64/SDL2test.lib)
+else()
+    include(FindPkgConfig)
+    PKG_SEARCH_MODULE(SDL2 REQUIRED sdl2)
+    message(STATUS "Found SDL2 in ${SDL2_INCLUDE_DIRS}")
+    PKG_SEARCH_MODULE(SDL2IMAGE REQUIRED SDL2_image>=2.0.0)
+    message(STATUS "Found SDL2IMAGE in ${SDL2IMAGE_INCLUDE_DIRS}")
+endif(WIN32)
+
+if(WIN32)
+    include_directories(${SDL2_INCLUDE_DIR})
+    SET(APPLE_LIBS ${SDL2_LIBRARIES})
+    set(LIBS ${LIBS} ${APPLE_LIBS})
+	message(STATUS "Found SDL2 in ${LIBS}")
+endif()
 
 if (APPLE OR UNIX)
     include_directories(${SDL2_INCLUDE_DIR} ${SDL2IMAGE_INCLUDE_DIRS})
@@ -31,6 +45,7 @@ file(GLOB SOURCE
 
 add_executable(${projectName} ${SOURCE} )
 target_link_libraries(${projectName} ${LIBS})
+
 if (WIN32)
     set_target_properties(${projectName} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
 elseif (UNIX AND NOT APPLE)

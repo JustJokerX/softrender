@@ -5,6 +5,7 @@
 #include <vector>
 #include <cmath>
 #include <cstdlib>
+#include <cstddef>
 #include <limits>
 #include <algorithm>
 #include <time.h>
@@ -22,8 +23,15 @@
 #define INFINITY 1e8
 #endif
 
+#if defined __linux__ || defined __APPLE__
 #include <SDL2/SDL.h>
 #include <zconf.h>
+#else
+#include "SDL.h"
+#undef min
+#undef max
+#endif
+
 #include <iostream>
 
 const int width = 800;
@@ -256,7 +264,7 @@ void TriangleFast2(Vector3f *pts, int *zbuffer, Uint32 *pix, Uint32 *colors) {
     }
   }
 }
-
+#if 0
 void Triangle(Vector3i *pts, int *zbuffer, Uint32 *pix, Uint32 *colors) {
   Vector2i bboxmin(std::numeric_limits<int>::max(), std::numeric_limits<int>::max());
   Vector2i bboxmax(-std::numeric_limits<int>::max(), -std::numeric_limits<int>::max());
@@ -298,6 +306,7 @@ void Triangle(Vector3i *pts, int *zbuffer, Uint32 *pix, Uint32 *colors) {
     }
   }
 }
+#endif // 0
 
 template<typename T>
 class Device {
@@ -369,8 +378,13 @@ int main(int argc, char **argv) {
   if (2 == argc) {
     model = new Model(argv[1]);
   } else {
-    model = new Model("../../obj/african_head.obj");
+#if defined __linux__ || defined __APPLE__
+	  model = new Model("../../obj/african_head.obj");
+#else
+	  model = new Model("../obj/african_head.obj");
+#endif // 
   }
+  assert(model == NULL);
 
 //add device
   Device<GLfloat> m_device;
@@ -558,7 +572,13 @@ int main(int argc, char **argv) {
     SDL_UnlockTexture(gTexture);
     SDL_RenderCopy(gRender, gTexture, NULL, NULL);
     SDL_RenderPresent(gRender);
-    usleep(10);
+#if defined __linux__ || defined __APPLE__
+	usleep(10);
+#else
+	Sleep(1);
+#endif //
+
+    
   }
 
   { // dump z-buffer (debugging purposes only)
@@ -574,4 +594,5 @@ int main(int argc, char **argv) {
   }
 
   close();
+  return 0;
 }
