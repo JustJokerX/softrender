@@ -42,9 +42,9 @@ file(GLOB SOURCE
         "src/*.h"
         "src/*.cpp"
         )
-
+add_subdirectory(${CMAKE_SOURCE_DIR}/imported/ofxProfiler)
 add_executable(${projectName} ${SOURCE} )
-target_link_libraries(${projectName} ${LIBS})
+target_link_libraries(${projectName} ${LIBS} ofxProfiler)
 
 if (WIN32)
     set_target_properties(${projectName} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
@@ -57,3 +57,5 @@ elseif (APPLE)
 endif (WIN32)
 
 include_directories(${CMAKE_SOURCE_DIR}/includes)
+include_directories(${CMAKE_SOURCE_DIR}/imported/eigen)
+include_directories(${CMAKE_SOURCE_DIR}/imported/ofxProfiler/src)

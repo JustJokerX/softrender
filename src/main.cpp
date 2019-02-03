@@ -9,10 +9,10 @@
 #include <limits>
 #include <algorithm>
 #include <time.h>
-#include "../imported/eigen/Eigen/Dense"
-#include "../imported/eigen/Eigen/Geometry"
+#include <Eigen/Dense>
+#include <Eigen/Geometry>
 #include "Model.h"
-
+#include <ofxProfiler.h>
 #include <GL/glcorearb.h>
 
 #if defined __linux__ || defined __APPLE__
@@ -417,6 +417,9 @@ int main(int argc, char **argv) {
   int frame_count(0);
   // While application is running
   while (!quit) {
+    PROFILE_START_FRAME;
+    PROFILE_BEGIN("FRAME");
+    PROFILE_BEGIN("Prepare");
     frame_count++;
     if(frame_count == 60){
       finish = clock();
@@ -487,7 +490,8 @@ int main(int argc, char **argv) {
     for (int i = 0; i < width * height; i++) {
       zbuffer[i] = std::numeric_limits<int>::min();
     }
-
+    PROFILE_END();
+    PROFILE_BEGIN("Render face");
     // Render face
     for (int i = 0; i < model->nfaces(); i++) {
       std::vector<int> face = model->face(i);
@@ -544,6 +548,7 @@ int main(int argc, char **argv) {
 
       TriangleFast2(screen_coords, zbuffer, (Uint32 *) pix, colors);
     }
+    PROFILE_END();
 
 //    Vector3f world_coords[3];
 //    world_coords[0] << 0, 0, 0.99;
@@ -567,18 +572,22 @@ int main(int argc, char **argv) {
 
     // tessellation
 //    TriangleFast2(screen_coords, zbuffer, (Uint32 *) pix, colors);
-
+    PROFILE_BEGIN("Render present");
     // Render end
     SDL_UnlockTexture(gTexture);
     SDL_RenderCopy(gRender, gTexture, NULL, NULL);
     SDL_RenderPresent(gRender);
+    PROFILE_END();
+    PROFILE_END();
+    cout << ofxProfiler::getResults();
+
 #if defined __linux__ || defined __APPLE__
-	usleep(10);
+	usleep(1000000);
 #else
 	Sleep(1);
 #endif //
 
-    
+
   }
 
   { // dump z-buffer (debugging purposes only)
