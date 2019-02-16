@@ -41,6 +41,22 @@ include_directories(${CMAKE_SOURCE_DIR}/api)
 file(GLOB SOURCE
         "src/*.h"
         "src/*.cpp"
+        "src/*.hpp"
+        "src/framework/3d/*.cpp"
+        "src/framework/3d/*.hpp"
+        "src/framework/3rdparty/lodepng/*cpp"
+        "src/framework/3rdparty/lodepng/*.hpp"
+        "src/framework/base/*.cpp"
+        "src/framework/base/*.hpp"
+        "src/framework/base/*.inl"
+        "src/framework/gpu/*.cpp"
+        "src/framework/gpu/*.hpp"
+        "src/framework/gui/*.cpp"
+        "src/framework/gui/*.hpp"
+        "src/framework/io/*.cpp"
+        "src/framework/io/*.hpp"
+        "src/framework/*.cpp"
+        "src/framework/*.hpp"
         )
 add_subdirectory(${CMAKE_SOURCE_DIR}/imported/ofxProfiler)
 add_executable(${projectName} ${SOURCE} )
