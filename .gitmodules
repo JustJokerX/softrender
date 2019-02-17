@@ -1,3 +1,0 @@
-[submodule "imported/eigen"]
-	path = imported/eigen
-	url = https://github.com/eigenteam/eigen-git-mirror
