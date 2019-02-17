@@ -222,6 +222,7 @@ String& String::appendfv(const char* fmt, va_list args)
 //    m_chars.resize(lenA + lenB + 1);
 //    vsprintf_s(m_chars.getPtr(lenA), lenB + 1, fmt, args);
 //    return *this;
+	return *this;
 }
 
 //------------------------------------------------------------------------
@@ -324,7 +325,7 @@ String FW::getDateString(void)
 {
     // Query and format.
 
-//    char buffer[256];
+    char buffer[256];
 //    time_t currTime;
 //    time(&currTime);
 //    if (ctime_s(buffer, sizeof(buffer), &currTime) != 0)
@@ -336,7 +337,7 @@ String FW::getDateString(void)
 //    while (*ptr && *ptr != '\n' && *ptr != '\r')
 //        ptr++;
 //    *ptr = 0;
-//    return buffer;
+    return buffer;
 }
 
 //------------------------------------------------------------------------

@@ -9,8 +9,8 @@
 #include <limits>
 #include <algorithm>
 #include <time.h>
-#include <Eigen/Dense>
-#include <Eigen/Geometry>
+//#include <Eigen/Dense>
+//#include <Eigen/Geometry>
 #include <iostream>
 #include "Model.h"
 #include <ofxProfiler.h>
