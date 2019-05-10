@@ -26,15 +26,15 @@
 // */
 //
 #include "Defs.hpp"
-//#include "String.hpp"
+#include "String.hpp"
 //#include "Thread.hpp"
 //#include "Timer.hpp"
 ////#include "gui/Window.hpp"
 ////#include "io/File.hpp"
 //
-//#include <stdlib.h>
-//#include <stdio.h>
-//#include <stdarg.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdarg.h>
 //#include <sys/malloc.h>
 //
 //using namespace FW;
@@ -222,6 +222,7 @@
 //
 //------------------------------------------------------------------------
 #include <cstdio>
+#include <cstdarg>
 void FW::printf(const char* fmt, ...)
 {
 //    s_lock.enter();
@@ -302,44 +303,44 @@ void FW::printf(const char* fmt, ...)
 //
 ////------------------------------------------------------------------------
 //
-//void FW::fail(const char* fmt, ...)
-//{
-//    // Fail only once.
-//
-//    s_lock.enter();
-//    bool alreadyFailed = s_hasFailed;
-//    s_hasFailed = true;
-//    s_lock.leave();
-//    if (alreadyFailed)
-//        return;
-//
-//    // Print message.
-//
-//    String tmp;
-//    va_list args;
-//    va_start(args, fmt);
-//    tmp.setfv(fmt, args);
-//    va_end(args);
-//    printf("\n%s\n", tmp.getPtr());
-//
-//    // Try to prevent any user code from being executed.
-//
-//    Thread::suspendAll();
-//    setDiscardEvents(true);
-//
-//    // Display modal dialog.
-//
-//    MessageBox(NULL, tmp.getPtr(), "Fatal error", MB_OK);
-//
-//    // Running under a debugger => break here.
-//
-//    if (IsDebuggerPresent())
-//        __debugbreak();
-//
-//    // Kill the app.
-//
-//    FatalExit(1);
-//}
+void FW::fail(const char* fmt, ...)
+{
+    // Fail only once.
+
+    //s_lock.enter();
+    //bool alreadyFailed = s_hasFailed;
+    //s_hasFailed = true;
+    //s_lock.leave();
+    //if (alreadyFailed)
+    //    return;
+
+    // Print message.
+
+    String tmp;
+    va_list args;
+    va_start(args, fmt);
+    tmp.setfv(fmt, args);
+    va_end(args);
+    printf("\n%s\n", tmp.getPtr());
+
+    // Try to prevent any user code from being executed.
+
+    /*Thread::suspendAll();
+    setDiscardEvents(true);*/
+
+    // Display modal dialog.
+
+    //MessageBox(NULL, tmp.getPtr(), "Fatal error", MB_OK);
+
+    // Running under a debugger => break here.
+
+    //if (IsDebuggerPresent())
+        //__debugbreak();
+
+    // Kill the app.
+
+    //FatalExit(1);
+}
 //
 ////------------------------------------------------------------------------
 //
