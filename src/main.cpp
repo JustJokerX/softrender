@@ -106,7 +106,7 @@ void Line(S32 x0, S32 y0, S32 x1, S32 y1, U32 *pix, U32 color) {
 
   for (S32 x = x0; x <= x1; x++) {
     F32 t = (x - x0) / (F32) (x1 - x0);
-    S32 y = y0 * (1. - t) + y1 * t;
+    S32 y = y0 * (1.f - t) + y1 * t;
     if (steep) {
       put_pixel(pix, color, y, x);
     } else {
@@ -173,9 +173,9 @@ void TriangleFast2(Vec3f *pts, S32 *zbuffer, U32 *pix, U32 *colors) {
     SDL_GetRGBA(colors[i], pixFormat, &r[i], &g[i], &b[i], &a[i]);
   }
 
-  F32 z_inv_0 = 1.0 / pts[0][2];
-  F32 z_inv_1 = 1.0 / pts[1][2];
-  F32 z_inv_2 = 1.0 / pts[2][2];
+  F32 z_inv_0 = 1.0f / pts[0][2];
+  F32 z_inv_1 = 1.0f / pts[1][2];
+  F32 z_inv_2 = 1.0f / pts[2][2];
 
   F32 y_0 = pts[0][1];
   F32 y_1 = pts[1][1];
@@ -220,7 +220,7 @@ void TriangleFast2(Vec3f *pts, S32 *zbuffer, U32 *pix, U32 *colors) {
   F32 z_inv_p;
 
   z_inv_p = z_inv_0 + (bboxmin.x - x_0) * D_Zpinv_x + (bboxmin.y - y_0) * D_Zpinv_y;
-  z_p = 1.0 / z_inv_p;
+  z_p = 1.0f / z_inv_p;
   F32 r_i_p = (r[0] * z_inv_0 + (bboxmin.x - x_0) * D_Zpinv_x_r + (bboxmin.y - y_0) * D_Zpinv_y_r);
   F32 g_i_p = (g[0] * z_inv_0 + (bboxmin.x - x_0) * D_Zpinv_x_g + (bboxmin.y - y_0) * D_Zpinv_y_g);
   F32 b_i_p = (b[0] * z_inv_0 + (bboxmin.x - x_0) * D_Zpinv_x_b + (bboxmin.y - y_0) * D_Zpinv_y_b);
@@ -238,7 +238,7 @@ void TriangleFast2(Vec3f *pts, S32 *zbuffer, U32 *pix, U32 *colors) {
     for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
       P.z = 0;
 
-      z_p = 1.0 / z_inv_p_base;
+      z_p = 1.0f / z_inv_p_base;
       P.z = z_p;
       U32 color = SDL_MapRGBA(pixFormat, r_i_p_base * z_p, g_i_p_base * z_p, b_i_p_base * z_p, 255);
 
@@ -371,9 +371,9 @@ void TriangleFast3(Vec3f *pts, S32 *zbuffer, U32 *pix, U32 *colors) {
     SDL_GetRGBA(colors[i], pixFormat, &r[i], &g[i], &b[i], &a[i]);
   }
 
-  F32 z_inv_0 = 1.0 / pts[0][2];
-  F32 z_inv_1 = 1.0 / pts[1][2];
-  F32 z_inv_2 = 1.0 / pts[2][2];
+  F32 z_inv_0 = 1.0f / pts[0][2];
+  F32 z_inv_1 = 1.0f / pts[1][2];
+  F32 z_inv_2 = 1.0f / pts[2][2];
 
   F32 y_0 = pts[0][1];
   F32 y_1 = pts[1][1];
@@ -395,24 +395,25 @@ void TriangleFast3(Vec3f *pts, S32 *zbuffer, U32 *pix, U32 *colors) {
   F32 c_rp = -1.f * (n_rp.dot(v_r));
   setupTriangle(pts);
   F32 Den = Det(pts[0], pts[1], pts[2]);
+  F32 Den_1 = 1.0f / Den;
 
-  F32 D_Zpinv_x = ((y_2 - y_0) * (z_inv_1 - z_inv_0) + (y_0 - y_1) * (z_inv_2 - z_inv_0)) / Den;
-  F32 D_Zpinv_y = ((x_0 - x_2) * (z_inv_1 - z_inv_0) + (x_1 - x_0) * (z_inv_2 - z_inv_0)) / Den;
+  F32 D_Zpinv_x = ((y_2 - y_0) * (z_inv_1 - z_inv_0) + (y_0 - y_1) * (z_inv_2 - z_inv_0)) * Den_1;
+  F32 D_Zpinv_y = ((x_0 - x_2) * (z_inv_1 - z_inv_0) + (x_1 - x_0) * (z_inv_2 - z_inv_0)) * Den_1;
 
   F32 D_Zpinv_x_r =
-      ((y_2 - y_0) * (z_inv_1 * r[1] - z_inv_0 * r[0]) + (y_0 - y_1) * (z_inv_2 * r[2] - z_inv_0 * r[0])) / Den;
+      ((y_2 - y_0) * (z_inv_1 * r[1] - z_inv_0 * r[0]) + (y_0 - y_1) * (z_inv_2 * r[2] - z_inv_0 * r[0])) * Den_1;
   F32 D_Zpinv_y_r =
-      ((x_0 - x_2) * (z_inv_1 * r[1] - z_inv_0 * r[0]) + (x_1 - x_0) * (z_inv_2 * r[2] - z_inv_0 * r[0])) / Den;
+      ((x_0 - x_2) * (z_inv_1 * r[1] - z_inv_0 * r[0]) + (x_1 - x_0) * (z_inv_2 * r[2] - z_inv_0 * r[0])) * Den_1;
 
   F32 D_Zpinv_x_g =
-      ((y_2 - y_0) * (z_inv_1 * g[1] - z_inv_0 * g[0]) + (y_0 - y_1) * (z_inv_2 * g[2] - z_inv_0 * g[0])) / Den;
+      ((y_2 - y_0) * (z_inv_1 * g[1] - z_inv_0 * g[0]) + (y_0 - y_1) * (z_inv_2 * g[2] - z_inv_0 * g[0])) * Den_1;
   F32 D_Zpinv_y_g =
-      ((x_0 - x_2) * (z_inv_1 * g[1] - z_inv_0 * g[0]) + (x_1 - x_0) * (z_inv_2 * g[2] - z_inv_0 * g[0])) / Den;
+      ((x_0 - x_2) * (z_inv_1 * g[1] - z_inv_0 * g[0]) + (x_1 - x_0) * (z_inv_2 * g[2] - z_inv_0 * g[0])) * Den_1;
 
   F32 D_Zpinv_x_b =
-      ((y_2 - y_0) * (z_inv_1 * b[1] - z_inv_0 * b[0]) + (y_0 - y_1) * (z_inv_2 * b[2] - z_inv_0 * b[0])) / Den;
+      ((y_2 - y_0) * (z_inv_1 * b[1] - z_inv_0 * b[0]) + (y_0 - y_1) * (z_inv_2 * b[2] - z_inv_0 * b[0])) * Den_1;
   F32 D_Zpinv_y_b =
-      ((x_0 - x_2) * (z_inv_1 * b[1] - z_inv_0 * b[0]) + (x_1 - x_0) * (z_inv_2 * b[2] - z_inv_0 * b[0])) / Den;
+      ((x_0 - x_2) * (z_inv_1 * b[1] - z_inv_0 * b[0]) + (x_1 - x_0) * (z_inv_2 * b[2] - z_inv_0 * b[0])) * Den_1;
 
   F32 z_p;
   F32 z_inv_p;
@@ -429,10 +430,12 @@ void TriangleFast3(Vec3f *pts, S32 *zbuffer, U32 *pix, U32 *colors) {
     F32 r_i_p_base = r_i_p;
     F32 g_i_p_base = g_i_p;
     F32 b_i_p_base = b_i_p;
+
     z_inv_p += D_Zpinv_x;
     r_i_p += D_Zpinv_x_r;
     g_i_p += D_Zpinv_x_g;
     b_i_p += D_Zpinv_x_b;
+
     for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
       P.z = 0;
 
@@ -510,7 +513,7 @@ Mat4f viewport(S32 x, S32 y, S32 w, S32 h) {
 }
 
 Vec3f world2screen(Vec3f v) {
-  return Vec3f(S32((v.x + 1.) * width / 2. + .5), S32((v.y + 1.) * height / 2. + .5), v.z);
+  return Vec3f(S32((v.x + 1.f) * width / 2.f + .5f), S32((v.y + 1.f) * height / 2.f + .5f), v.z);
 }
 
 Mat4f lookat(Vec3f eye, Vec3f center, Vec3f up) {
@@ -539,6 +542,8 @@ S32 main(S32 argc, char **argv) {
     model = new Model("../../obj/african_head.obj");
 #else
     model = new Model("../obj/african_head.obj");
+	//model = new Model("../obj/IronMan.obj");
+	//model = new Model("../obj/bugatti.obj");
 #endif // 
   }
 //  assert(model == NULL);
@@ -580,7 +585,7 @@ S32 main(S32 argc, char **argv) {
     frame_count++;
     if (frame_count == 60) {
       finish = clock();
-      duration = (double) (finish - start) / CLOCKS_PER_SEC;
+      duration = (finish - start) / CLOCKS_PER_SEC;
       FW::printf("%f  FPS\n", 60 / duration);
       start = clock();
       frame_count = 0;
@@ -664,7 +669,8 @@ S32 main(S32 argc, char **argv) {
         screen_coords[j] = (v_temp).getXYZ();
 
         world_coords[j] = v;
-        intensity[j] = -1.0f * (n_v[j].dot(light_dir));
+        intensity[j] = fabs(n_v[j].dot(light_dir));
+#if  defined(WITH_TEXTURE)
         if (intensity[j] > 0) {
           colors[j] = SDL_MapRGBA(pixFormat,
                                   static_cast<U8>(model->diffuse(model->uv(i, j))[2] * intensity[j]),
@@ -678,8 +684,18 @@ S32 main(S32 argc, char **argv) {
                                   model->diffuse(model->uv(i, j))[0],
                                   model->diffuse(model->uv(i, j))[3]);
         }
+#else
+		if (intensity[j] > 0) {
+			colors[j] = SDL_MapRGBA(pixFormat,
+				static_cast<U8>(255.0 * intensity[j]),
+				static_cast<U8>(255.0 * intensity[j]),
+				static_cast<U8>(255.0 * intensity[j]),
+				255);
+		}
+#endif
 
       }
+
 
       // back face culling
       Vec3f AB = screen_coords[0] - screen_coords[1];
@@ -694,12 +710,9 @@ S32 main(S32 argc, char **argv) {
 //      screen_coords_i[0] = screen_coords[0];
 //      screen_coords_i[1] = screen_coords[1];
 //      screen_coords_i[2] = screen_coords[2];
-
-
       TriangleFast3(screen_coords, zbuffer, (U32 *) pix, colors);
     }
     PROFILE_END();
-
 //    Vec3f world_coords[3];
 //    world_coords[0] << 0, 0, 0.99;
 //    world_coords[1] << 1, 0.5, 0.99;

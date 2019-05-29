@@ -3,6 +3,7 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <algorithm>
 #include "Model.h"
 
 Model::Model(const char *filename) : verts_(), faces_(), norms_(), uv_(), diffusemap_(), normalmap_(), specularmap_()  {
@@ -33,7 +34,7 @@ Model::Model(const char *filename) : verts_(), faces_(), norms_(), uv_(), diffus
       std::vector<Vec3i> f;
       Vec3i tmp;
       iss >> trash;
-      while (iss >> tmp[0] >> trash >> tmp[1] >> trash >> tmp[2]) {
+      while (iss >> tmp[0] >> trash  >> tmp[1] >> trash >> tmp[2]) {
         for (int i=0; i<3; i++) tmp[i]--; // in wavefront obj all indices start at 1, not zero
         f.push_back(tmp);
       }
@@ -41,9 +42,9 @@ Model::Model(const char *filename) : verts_(), faces_(), norms_(), uv_(), diffus
     }
   }
   std::cerr << "# v# " << verts_.size() << " f# "  << faces_.size() << " vt# " << uv_.size() << " vn# " << norms_.size() << std::endl;
-  load_texture(filename, "_diffuse.tga", diffusemap_);
-  load_texture(filename, "_nm_tangent.tga",      normalmap_);
-  load_texture(filename, "_spec.tga",    specularmap_);
+  //load_texture(filename, "_diffuse.tga", diffusemap_);
+  //load_texture(filename, "_nm_tangent.tga",      normalmap_);
+  //load_texture(filename, "_spec.tga",    specularmap_);
 }
 
 Model::~Model() {
