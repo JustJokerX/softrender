@@ -17,6 +17,8 @@
 #include <GL/glcorearb.h>
 #include "Math.hpp"
 #include "Constants.hpp"
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "tiny_obj_loader.h"
 
 #if defined __linux__ || defined __APPLE__
 // "Compiled for Linux
@@ -27,7 +29,7 @@
 #endif
 
 #if defined __linux__ || defined __APPLE__
-#include <SDL2/SDL.h>
+#include <SDL.h>
 #include <zconf.h>
 #else
 #include "SDL.h"
@@ -535,18 +537,39 @@ Mat4f lookat(Vec3f eye, Vec3f center, Vec3f up) {
 }
 
 S32 main(S32 argc, char **argv) {
-  if (2 == argc) {
-    model = new Model(argv[1]);
-  } else {
-#if defined __linux__ || defined __APPLE__
-    model = new Model("../../obj/african_head.obj");
-#else
-    model = new Model("../obj/african_head.obj");
-	//model = new Model("../obj/IronMan.obj");
-	//model = new Model("../obj/bugatti.obj");
-#endif // 
+//  if (2 == argc) {
+//    model = new Model(argv[1]);
+//  } else {
+//#if defined __linux__ || defined __APPLE__
+//    model = new Model("../../obj/african_head.obj");
+//#else
+//    model = new Model("../obj/african_head.obj");
+//#endif //
+//  }
+
+  std::string inputfile = "../../obj/african_head.obj";
+//  std::string inputfile = "../../obj/cottage_obj.obj";
+
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, inputfile.c_str());
+
+  if (!warn.empty()) {
+    std::cout << warn << std::endl;
   }
-//  assert(model == NULL);
+
+  if (!err.empty()) {
+    std::cerr << err << std::endl;
+  }
+
+  if (!ret) {
+    exit(1);
+  }
 
 //add device
   Device<GLfloat> m_device;
@@ -647,31 +670,49 @@ S32 main(S32 argc, char **argv) {
     }
     PROFILE_END();
     PROFILE_BEGIN("Render face");
-    // Render face
-    for (S32 i = 0; i < model->nfaces(); i++) {
-      std::vector<S32> face = model->face(i);
-      Vec3f screen_coords[3];
-      Vec3f world_coords[3];
-      U32 colors[3];
-      Vec3f n_v[3];
-      F32 intensity[3];
+    // Loop over shapes
+    for (size_t s = 0; s < shapes.size(); s++) {
 
-      // load texture data
-      for (S32 j = 0; j < 3; ++j) {
-        Vec3f v = model->vert(face[j]);
-        n_v[j] = model->normal(i, j);
+      // Loop over faces(polygon)
+      size_t index_offset = 0;
+      for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+        Vec3f screen_coords[3];
+        Vec3f world_coords[3];
+        U32 colors[3];
+        Vec3f n_v[3];
+        F32 intensity[3];
+        int fv = shapes[s].mesh.num_face_vertices[f];
 
-        Vec4f v_(v,1);
+        // Loop over vertices in the face.
+        for (size_t v = 0; v < fv; v++) {
+          // access to vertex
+          tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
+          tinyobj::real_t vx = attrib.vertices[3 * idx.vertex_index + 0];
+          tinyobj::real_t vy = attrib.vertices[3 * idx.vertex_index + 1];
+          tinyobj::real_t vz = attrib.vertices[3 * idx.vertex_index + 2];
+          Vec3f vec(vx, vy, vz);
+          tinyobj::real_t nx = attrib.normals[3 * idx.normal_index + 0];
+          tinyobj::real_t ny = attrib.normals[3 * idx.normal_index + 1];
+          tinyobj::real_t nz = attrib.normals[3 * idx.normal_index + 2];
+          n_v[v] = Vec3f(nx,ny,nz);
+          tinyobj::real_t tx = attrib.texcoords[2*idx.texcoord_index+0];
+          tinyobj::real_t ty = attrib.texcoords[2*idx.texcoord_index+1];
+          // Optional: vertex colors
+          // tinyobj::real_t red = attrib.colors[3*idx.vertex_index+0];
+          // tinyobj::real_t green = attrib.colors[3*idx.vertex_index+1];
+          // tinyobj::real_t blue = attrib.colors[3*idx.vertex_index+2];
+          Vec4f v_(vec, 1);
 //        v_ << v, 1;
-        Vec4f v_temp;
-        v_temp = ViewPort * Projection * ModelView * v_;
-        v_temp = v_temp / v_temp.w;
-        screen_coords[j] = (v_temp).getXYZ();
+          Vec4f v_temp;
+          v_temp = ViewPort * Projection * ModelView * v_;
+          v_temp = v_temp / v_temp.w;
+          screen_coords[v] = (v_temp).getXYZ();
 
-        world_coords[j] = v;
-        intensity[j] = fabs(n_v[j].dot(light_dir));
+          world_coords[v] = vec;
+          intensity[v] = fabs(n_v[v].dot(light_dir));
+
 #if  defined(WITH_TEXTURE)
-        if (intensity[j] > 0) {
+          if (intensity[j] > 0) {
           colors[j] = SDL_MapRGBA(pixFormat,
                                   static_cast<U8>(model->diffuse(model->uv(i, j))[2] * intensity[j]),
                                   static_cast<U8>(model->diffuse(model->uv(i, j))[1] * intensity[j]),
@@ -685,32 +726,88 @@ S32 main(S32 argc, char **argv) {
                                   model->diffuse(model->uv(i, j))[3]);
         }
 #else
-		if (intensity[j] > 0) {
-			colors[j] = SDL_MapRGBA(pixFormat,
-				static_cast<U8>(255.0 * intensity[j]),
-				static_cast<U8>(255.0 * intensity[j]),
-				static_cast<U8>(255.0 * intensity[j]),
-				255);
-		}
+          if (intensity[v] > 0) {
+            colors[v] = SDL_MapRGBA(pixFormat,
+                                    static_cast<U8>(255.0 * intensity[v]),
+                                    static_cast<U8>(255.0 * intensity[v]),
+                                    static_cast<U8>(255.0 * intensity[v]),
+                                    255);
+          }
 #endif
 
-      }
+        }
+        index_offset += fv;
+
+        // per-face material
+        shapes[s].mesh.material_ids[f];
+//      }
+//    }
+
+        // Render face
+//    for (S32 i = 0; i < model->nfaces(); i++) {
+//      std::vector<S32> face = model->face(i);
+//      Vec3f screen_coords[3];
+//      Vec3f world_coords[3];
+//      U32 colors[3];
+//      Vec3f n_v[3];
+//      F32 intensity[3];
+//
+//      // load texture data
+//      for (S32 j = 0; j < 3; ++j) {
+//        Vec3f v = model->vert(face[j]);
+//        n_v[j] = model->normal(i, j);
+//
+//        Vec4f v_(v,1);
+////        v_ << v, 1;
+//        Vec4f v_temp;
+//        v_temp = ViewPort * Projection * ModelView * v_;
+//        v_temp = v_temp / v_temp.w;
+//        screen_coords[j] = (v_temp).getXYZ();
+//
+//        world_coords[j] = v;
+//        intensity[j] = fabs(n_v[j].dot(light_dir));
+//#if  defined(WITH_TEXTURE)
+//        if (intensity[j] > 0) {
+//          colors[j] = SDL_MapRGBA(pixFormat,
+//                                  static_cast<U8>(model->diffuse(model->uv(i, j))[2] * intensity[j]),
+//                                  static_cast<U8>(model->diffuse(model->uv(i, j))[1] * intensity[j]),
+//                                  static_cast<U8>(model->diffuse(model->uv(i, j))[0] * intensity[j]),
+//                                  model->diffuse(model->uv(i, j))[3]);
+//        } else {
+//          colors[j] = SDL_MapRGBA(pixFormat,
+//                                  model->diffuse(model->uv(i, j))[2],
+//                                  model->diffuse(model->uv(i, j))[1],
+//                                  model->diffuse(model->uv(i, j))[0],
+//                                  model->diffuse(model->uv(i, j))[3]);
+//        }
+//#else
+//		if (intensity[j] > 0) {
+//			colors[j] = SDL_MapRGBA(pixFormat,
+//				static_cast<U8>(255.0 * intensity[j]),
+//				static_cast<U8>(255.0 * intensity[j]),
+//				static_cast<U8>(255.0 * intensity[j]),
+//				255);
+//		}
+//#endif
+//
+//      }
 
 
-      // back face culling
-      Vec3f AB = screen_coords[0] - screen_coords[1];
-      Vec3f AC = screen_coords[0] - screen_coords[2];
-      Vec3f N = AC.cross(AB);
-      if (N.z > 0) {
-        continue;
-      }
+        // back face culling
+        Vec3f AB = screen_coords[0] - screen_coords[1];
+        Vec3f AC = screen_coords[0] - screen_coords[2];
+        Vec3f N = AC.cross(AB);
+        if (N.z > 0) {
+          continue;
+        }
 
-      // tessellation
+        // tessellation
 //      Vec3i screen_coords_i[3];
 //      screen_coords_i[0] = screen_coords[0];
 //      screen_coords_i[1] = screen_coords[1];
 //      screen_coords_i[2] = screen_coords[2];
-      TriangleFast3(screen_coords, zbuffer, (U32 *) pix, colors);
+        TriangleFast3(screen_coords, zbuffer, (U32 *) pix, colors);
+      }
     }
     PROFILE_END();
 //    Vec3f world_coords[3];
@@ -745,24 +842,24 @@ S32 main(S32 argc, char **argv) {
     cout << ofxProfiler::getResults();
 
 #if defined __linux__ || defined __APPLE__
-    usleep(1000000);
+    usleep(10);
 #else
     Sleep(1);
 #endif //
 
   }
 
-  { // dump z-buffer (debugging purposes only)
-    TGAImage zbimage(width, height, TGAImage::GRAYSCALE);
-    for (S32 i = 0; i < width; i++) {
-      for (S32 j = 0; j < height; j++) {
-        unsigned char zzzz = zbuffer[i + j * width];
-        zbimage.set(i, j, TGAColor(&zzzz, 1));
-      }
-    }
-    zbimage.flip_vertically(); // i want to have the origin at the left bottom corner of the image
-    zbimage.write_tga_file("zbuffer.tga");
-  }
+//  { // dump z-buffer (debugging purposes only)
+//    TGAImage zbimage(width, height, TGAImage::GRAYSCALE);
+//    for (S32 i = 0; i < width; i++) {
+//      for (S32 j = 0; j < height; j++) {
+//        unsigned char zzzz = zbuffer[i + j * width];
+//        zbimage.set(i, j, TGAColor(&zzzz, 1));
+//      }
+//    }
+//    zbimage.flip_vertically(); // i want to have the origin at the left bottom corner of the image
+//    zbimage.write_tga_file("zbuffer.tga");
+//  }
 
   close();
   return 0;
