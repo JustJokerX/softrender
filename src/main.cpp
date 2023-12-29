@@ -396,7 +396,7 @@ void TriangleFast3(Vec3f *pts, S32 *zbuffer, U32 *pix, U32 *colors) {
   F32 c_pq = -1.f * (n_pq.dot(v_p));
   F32 c_qr = -1.f * (n_qr.dot(v_q));
   F32 c_rp = -1.f * (n_rp.dot(v_r));
-  setupTriangle(pts);
+  // setupTriangle(pts);
   F32 Den = Det(pts[0], pts[1], pts[2]);
   F32 Den_1 = 1.0f / Den;
 
@@ -544,7 +544,8 @@ S32 main(S32 argc, char **argv) {
 #if defined __linux__ || defined __APPLE__
     model = new Model("../../obj/african_head.obj");
 #else
-    model = new Model("../obj/african_head.obj");
+    // model = new Model("../obj/african_head.obj");
+    model = new Model("../obj/diablo3_pose/diablo3_pose.obj");
 #endif
   }
 
